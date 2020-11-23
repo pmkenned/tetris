@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <assert.h>
 
 #include "main.h"
 #include "tetris.h"
@@ -48,6 +49,7 @@ end_game()
 {
     size_t i;
     if (!replay_game) {
+        /* TODO: filename should be command line argument */
         FILE * fp = fopen("inputs.dat", "w");
         if (fp == NULL) {
             perror("error");
@@ -83,7 +85,6 @@ enum {
     LINES_PER_LEVEL = 10
 };
 
-// TLOJISZ
 typedef enum {
     BOARD_SQ_EMPTY = 0,
     BOARD_SQ_T,
@@ -111,8 +112,7 @@ get_color(BOARD_SQ sq_val)
         case BOARD_SQ_S:        color = colors[6]; break;
         case BOARD_SQ_Z:        color = colors[7]; break;
         default:
-            fprintf(stderr, "ERRORL get_color(): invalid input\n");
-            exit(EXIT_FAILURE);
+            assert(0);
             break;
     }
     return color;
@@ -172,7 +172,7 @@ init_next_piece()
         r = use_seed ? seed : time(NULL);
         first = 0;
     }
-    srand(r); // guarantees no interference with PRNG
+    srand(r); /* guarantees no interference with PRNG */
     r = rand();
 
     curr_piece_idx = r % NUM_PIECES;
@@ -198,21 +198,21 @@ clear_full_rows()
                 break;
             }
         }
-        // push rows down
+        /* push rows down */
         if (row_full) {
             int r2;
-            // move all prior rows down 1 row
+            /* move all prior rows down 1 row */
             for (r2 = r; r2 > 0; r2--) {
                 for (c = 0; c < BOARD_COLS; c++) {
                     board[r2][c] = board[r2-1][c];
                 }
             }
-            // clear top row
+            /* clear top row */
             for (c = 0; c < BOARD_COLS; c++) {
                 board[0][c] = BOARD_SQ_EMPTY;
             }
             lc++;
-            r++; // recheck this row
+            r++; /* recheck this row */
         }
     }
     lines_cleared += lc;
@@ -285,7 +285,7 @@ handle_input(uint32_t frame_num, SDL_Event e)
                 if (!game_over) {
                     if (!replay_game)
                         append_input((INPUT_T) {frame_num, SDLK_SPACE});
-                    // move the piece down as far as it will go
+                    /* move the piece down as far as it will go */
                     while (piece_can_be_at(curr_piece_idx, curr_piece_ori, curr_piece_row+1, curr_piece_col))
                         curr_piece_row++;
                     add_clear_next();
@@ -295,7 +295,7 @@ handle_input(uint32_t frame_num, SDL_Event e)
                 toggle_fullscreen();
                 break;
             default:
-                // unhandled input
+                /* unhandled input */
                 break;
         }
     } else if (e.type == SDL_MOUSEBUTTONDOWN) {
@@ -336,12 +336,10 @@ tetris_replay_game(const char * filename)
     while (fgets(buffer, sizeof(buffer), fp) != NULL) {
         uint32_t frame_num, input;
         sscanf(buffer, "%u%u", &frame_num, &input);
-        //printf("%u %u\n", x, y);
         append_input((INPUT_T) {frame_num, input});
     }
     fclose(fp);
     replay_game = 1;
-    //exit(EXIT_SUCCESS);
 }
 
 void
@@ -359,14 +357,14 @@ tetris_handle_inputs(uint32_t frame_num)
             }
         }
         replay_e.type = SDL_KEYDOWN; // TODO: currently the only input type handled
+        if (replay_idx >= num_inputs)
+            end_game();
         while (inputs[replay_idx].frame_num == frame_num) {
             replay_e.key.keysym.sym = inputs[replay_idx].input;
             handle_input(frame_num, replay_e);
             replay_idx++;
-            //printf("%u %u\n", replay_idx, num_inputs);
-            if (replay_idx >= num_inputs) {
-                end_game();
-            }
+            if (replay_idx >= num_inputs)
+                break;
         }
     } else {
         while (SDL_PollEvent(&e)) {
@@ -383,7 +381,7 @@ tetris_update(uint32_t frame_num, uint32_t dt_ms)
     if (!game_over) {
         curr_piece_timer--;
         if (curr_piece_timer == 0) {
-            // move current piece down a row if possible, otherwise add it to board
+            /* move current piece down a row if possible, otherwise add it to board */
             if (piece_can_be_at(curr_piece_idx, curr_piece_ori, curr_piece_row+1, curr_piece_col)) {
                 curr_piece_row = (curr_piece_row + 1) % BOARD_ROWS;
                 curr_piece_timer = frames_per_fall();
@@ -399,9 +397,6 @@ tetris_render(SDL_Renderer * ren)
 {
     int r, c;
     COLOR_T color;
-    UNUSED(color);
-    UNUSED(r);
-    UNUSED(c);
     get_color(BOARD_SQ_EMPTY);
 
     SDL_SetRenderDrawColor(ren, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);

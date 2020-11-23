@@ -32,6 +32,8 @@ ifeq ($(KERNEL),Linux)
 endif
 ifeq ($(KERNEL),Darwin)
 	CPPFLAGS += -D OSX
+    CFLAGS += -F/Library/Frameworks
+    LDFLAGS += -framework SDL2
 endif
 
 SRC = main.c \

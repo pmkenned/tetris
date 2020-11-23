@@ -2,7 +2,12 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <time.h>
-#include <SDL.h>
+
+#if OSX
+#  include <SDL2/SDL.h>
+#else
+#  include <SDL.h>
+#endif
 
 #include "main.h"
 #include "tetris.h"
@@ -166,7 +171,7 @@ main(int argc, char * argv[])
     init_program();
 
     tetris_init_game();
-    //tetris_replay_game("input2.dat");
+    //tetris_replay_game("inputs.dat");
 
     loop();
 

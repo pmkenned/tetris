@@ -1,7 +1,12 @@
 #ifndef TETRIS_H
 #define TETRIS_H
 
-#include <SDL.h>
+#if OSX
+#  include <SDL2/SDL.h>
+#else
+#  include <SDL.h>
+#endif
+
 #include <stdint.h>
 
 void tetris_init_game();
