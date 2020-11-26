@@ -30,31 +30,6 @@ int sq = 0;
 int use_seed = 1;
 int seed = 0;
 
-#if 0
-void
-render_trivial(SDL_Renderer * ren)
-{
-    int i;
-    SDL_Rect fillRect = { win_w/4, win_h/4, win_w/2, win_h/2 };
-
-    SDL_SetRenderDrawColor(ren, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
-    SDL_RenderClear(ren);
-
-    SDL_SetRenderDrawColor(ren, 0xff, 0x00, 0x00, SDL_ALPHA_OPAQUE);
-    SDL_RenderFillRect(ren, &fillRect);
-
-    SDL_SetRenderDrawColor(ren, 0x00, 0x00, 0xff, SDL_ALPHA_OPAQUE);
-    SDL_RenderDrawLine(ren, 0, win_h/2, win_w, win_h/2);
-
-    SDL_SetRenderDrawColor(ren, 0xff, 0xff, 0x00, SDL_ALPHA_OPAQUE);
-    for(i = 0; i < win_h; i += 4) {
-        SDL_RenderDrawPoint(ren, win_w/2, i);
-    }
-
-    SDL_RenderPresent(ren);
-}
-#endif
-
 static void
 set_w_h()
 {

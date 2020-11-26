@@ -38,7 +38,8 @@ endif
 
 SRC = main.c \
 	  piece.c \
-	  tetris.c
+	  tetris.c \
+	  serialize.c
 OBJ = $(SRC:%.c=$(BUILD_DIR)/%.o)
 DEP = $(OBJ:%.o=%.d)
 

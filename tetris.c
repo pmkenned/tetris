@@ -7,20 +7,43 @@
 #include "main.h"
 #include "tetris.h"
 #include "piece.h"
+#include "serialize.h"
 
 #define UNUSED(expr) do { (void)(expr); } while (0)
 
-static int replay_game = 0;
-static int game_over = 0;
-static int level = 1;
-static int score = 0;
-static int lines_cleared = 0;
+enum {
+    BOARD_ROWS = 20,
+    BOARD_COLS = 10,
+    NUM_PIECES = 7,
+    LINES_PER_LEVEL = 10
+};
 
-static int curr_piece_idx = 0;
-static int curr_piece_ori = 0;
-static int curr_piece_row = 0;
-static int curr_piece_col = 0;
-static int curr_piece_timer = 0;
+typedef enum {
+    BOARD_SQ_EMPTY = 0,
+    BOARD_SQ_T,
+    BOARD_SQ_L,
+    BOARD_SQ_O,
+    BOARD_SQ_J,
+    BOARD_SQ_I,
+    BOARD_SQ_S,
+    BOARD_SQ_Z
+} BOARD_SQ;
+
+typedef struct {
+    int replay_game;
+    int game_over;
+    int level;
+    int score;
+    int lines_cleared;
+    int curr_piece_idx;
+    int curr_piece_ori;
+    int curr_piece_row;
+    int curr_piece_col;
+    int curr_piece_timer;
+    BOARD_SQ board[BOARD_ROWS][BOARD_COLS];
+} gamestate_t;
+
+gamestate_t gs;
 
 typedef struct {
     uint32_t frame_num;
@@ -47,8 +70,9 @@ append_input(INPUT_T input)
 static void
 end_game()
 {
+#if 0
     size_t i;
-    if (!replay_game) {
+    if (!gs.replay_game) {
         /* TODO: filename should be command line argument */
         FILE * fp = fopen("inputs.dat", "w");
         if (fp == NULL) {
@@ -59,6 +83,7 @@ end_game()
             fprintf(fp, "%u %u\n", inputs[i].frame_num, inputs[i].input);
         fclose(fp);
     }
+#endif
     done = 1;
     free(inputs);
 }
@@ -78,44 +103,10 @@ static const COLOR_T colors[] = {
     { 0xff, 0x00, 0x00, SDL_ALPHA_OPAQUE }
 };
 
-enum {
-    BOARD_ROWS = 20,
-    BOARD_COLS = 10,
-    NUM_PIECES = 7,
-    LINES_PER_LEVEL = 10
-};
-
-typedef enum {
-    BOARD_SQ_EMPTY = 0,
-    BOARD_SQ_T,
-    BOARD_SQ_L,
-    BOARD_SQ_O,
-    BOARD_SQ_J,
-    BOARD_SQ_I,
-    BOARD_SQ_S,
-    BOARD_SQ_Z
-} BOARD_SQ;
-
-static BOARD_SQ board[BOARD_ROWS][BOARD_COLS];
-
 static COLOR_T
 get_color(BOARD_SQ sq_val)
 {
-    COLOR_T color;
-    switch (sq_val) {
-        case BOARD_SQ_EMPTY:    color = colors[0]; break;
-        case BOARD_SQ_T:        color = colors[1]; break;
-        case BOARD_SQ_L:        color = colors[2]; break;
-        case BOARD_SQ_O:        color = colors[3]; break;
-        case BOARD_SQ_J:        color = colors[4]; break;
-        case BOARD_SQ_I:        color = colors[5]; break;
-        case BOARD_SQ_S:        color = colors[6]; break;
-        case BOARD_SQ_Z:        color = colors[7]; break;
-        default:
-            assert(0);
-            break;
-    }
-    return color;
+    return colors[sq_val];
 }
 
 static int
@@ -132,7 +123,7 @@ piece_can_be_at(int piece_idx, int piece_ori, int piece_row, int piece_col)
             }
             if ((sq_row >= BOARD_ROWS) || (sq_col < 0) || (sq_col >= BOARD_COLS))
                 return 0;
-            if (board[sq_row][sq_col] != BOARD_SQ_EMPTY)
+            if (gs.board[sq_row][sq_col] != BOARD_SQ_EMPTY)
                 return 0;
         }
     }
@@ -146,13 +137,13 @@ add_curr_piece_to_board()
 
     for (r=0; r<4; r++) {
         for (c=0; c<4; c++) {
-            int sq_val = pieces[curr_piece_idx][curr_piece_ori][r][c];
+            int sq_val = pieces[gs.curr_piece_idx][gs.curr_piece_ori][r][c];
             if (sq_val == 0) {
                 continue;
             }
-            int sq_row = curr_piece_row + r;
-            int sq_col = curr_piece_col + c;
-            board[sq_row][sq_col] = curr_piece_idx + 1; // TODO: hacky
+            int sq_row = gs.curr_piece_row + r;
+            int sq_col = gs.curr_piece_col + c;
+            gs.board[sq_row][sq_col] = gs.curr_piece_idx + 1; // TODO: hacky
         }
     }
 }
@@ -160,7 +151,7 @@ add_curr_piece_to_board()
 static uint32_t
 frames_per_fall()
 {
-    return FPS/(2*level);
+    return FPS/(2*gs.level);
 }
 
 static void
@@ -175,13 +166,13 @@ init_next_piece()
     srand(r); /* guarantees no interference with PRNG */
     r = rand();
 
-    curr_piece_idx = r % NUM_PIECES;
-    curr_piece_row = 0;
-    curr_piece_col = (BOARD_COLS/2)-2;
-    curr_piece_ori = 0;
-    curr_piece_timer = frames_per_fall();
-    if (!piece_can_be_at(curr_piece_idx, curr_piece_ori, curr_piece_row, curr_piece_col)) {
-        game_over = 1;
+    gs.curr_piece_idx = r % NUM_PIECES;
+    gs.curr_piece_row = 0;
+    gs.curr_piece_col = (BOARD_COLS/2)-2;
+    gs.curr_piece_ori = 0;
+    gs.curr_piece_timer = frames_per_fall();
+    if (!piece_can_be_at(gs.curr_piece_idx, gs.curr_piece_ori, gs.curr_piece_row, gs.curr_piece_col)) {
+        gs.game_over = 1;
     }
 }
 
@@ -193,7 +184,7 @@ clear_full_rows()
     for (r = BOARD_ROWS-1; r > 0; r--) {
         int row_full = 1;
         for (c = 0; c < BOARD_COLS; c++) {
-            if (board[r][c] == BOARD_SQ_EMPTY) {
+            if (gs.board[r][c] == BOARD_SQ_EMPTY) {
                 row_full = 0;
                 break;
             }
@@ -204,24 +195,24 @@ clear_full_rows()
             /* move all prior rows down 1 row */
             for (r2 = r; r2 > 0; r2--) {
                 for (c = 0; c < BOARD_COLS; c++) {
-                    board[r2][c] = board[r2-1][c];
+                    gs.board[r2][c] = gs.board[r2-1][c];
                 }
             }
             /* clear top row */
             for (c = 0; c < BOARD_COLS; c++) {
-                board[0][c] = BOARD_SQ_EMPTY;
+                gs.board[0][c] = BOARD_SQ_EMPTY;
             }
             lc++;
             r++; /* recheck this row */
         }
     }
-    lines_cleared += lc;
-    score += lc*lc*5;
-    if ((lc > 0) && (lines_cleared % LINES_PER_LEVEL == 0)) {
-        level++;
+    gs.lines_cleared += lc;
+    gs.score += lc*lc*5;
+    if ((lc > 0) && (gs.lines_cleared % LINES_PER_LEVEL == 0)) {
+        gs.level++;
     }
     if (lc > 0) {
-        printf("Score: %u Lines: %u Level: %u\n", score, lines_cleared, level);
+        printf("Score: %u Lines: %u Level: %u\n", gs.score, gs.lines_cleared, gs.level);
     }
 }
 
@@ -234,6 +225,28 @@ add_clear_next()
 }
 
 static void
+do_serialization()
+{
+    FILE * fp;
+    serial_buffer_t * sb = serial_buffer_create();
+    serialize(sb, &gs, sizeof(gs));
+    fp = fopen("save.dat", "wb");
+    assert(fp != NULL);
+    serial_buffer_write_to_file(sb, fp);
+    fclose(fp);
+}
+    
+static void
+do_deserialization()
+{
+    FILE * fp = fopen("save.dat", "rb");
+    assert(fp != NULL);
+    serial_buffer_t * sb = serial_buffer_create_from_file(fp);
+    deserialize(sb, &gs, sizeof(gs));
+    fclose(fp);
+}
+
+static void
 handle_input(uint32_t frame_num, SDL_Event e)
 {
     if (e.type == SDL_QUIT) {
@@ -243,51 +256,57 @@ handle_input(uint32_t frame_num, SDL_Event e)
             case SDLK_ESCAPE:
                 end_game();
                 break;
+            case SDLK_s:
+                do_serialization();
+                break;
+            case SDLK_d:
+                do_deserialization();
+                break;
             case SDLK_r:
-                if (!replay_game)
+                if (!gs.replay_game)
                     append_input((INPUT_T) {frame_num, SDLK_r});
                 tetris_init_game();
                 break;
             case SDLK_LEFT:
-                if (!game_over) {
-                    if (!replay_game)
+                if (!gs.game_over) {
+                    if (!gs.replay_game)
                         append_input((INPUT_T) {frame_num, SDLK_LEFT});
-                    if (piece_can_be_at(curr_piece_idx, curr_piece_ori, curr_piece_row, curr_piece_col-1))
-                        curr_piece_col--;
+                    if (piece_can_be_at(gs.curr_piece_idx, gs.curr_piece_ori, gs.curr_piece_row, gs.curr_piece_col-1))
+                        gs.curr_piece_col--;
                 }
                 break;
             case SDLK_RIGHT:
-                if (!game_over) {
-                    if (!replay_game)
+                if (!gs.game_over) {
+                    if (!gs.replay_game)
                         append_input((INPUT_T) {frame_num, SDLK_RIGHT});
-                    if (piece_can_be_at(curr_piece_idx, curr_piece_ori, curr_piece_row, curr_piece_col+1))
-                        curr_piece_col++;
+                    if (piece_can_be_at(gs.curr_piece_idx, gs.curr_piece_ori, gs.curr_piece_row, gs.curr_piece_col+1))
+                        gs.curr_piece_col++;
                 }
                 break;
             case SDLK_UP:
-                if (!game_over) {
-                    if (!replay_game)
+                if (!gs.game_over) {
+                    if (!gs.replay_game)
                         append_input((INPUT_T) {frame_num, SDLK_UP});
-                    int new_ori = (curr_piece_ori + 1) % 4;
-                    if (piece_can_be_at(curr_piece_idx, new_ori, curr_piece_row, curr_piece_col))
-                        curr_piece_ori = new_ori;
+                    int new_ori = (gs.curr_piece_ori + 1) % 4;
+                    if (piece_can_be_at(gs.curr_piece_idx, new_ori, gs.curr_piece_row, gs.curr_piece_col))
+                        gs.curr_piece_ori = new_ori;
                 }
                 break;
             case SDLK_DOWN:
-                if (!game_over) {
-                    if (!replay_game)
+                if (!gs.game_over) {
+                    if (!gs.replay_game)
                         append_input((INPUT_T) {frame_num, SDLK_DOWN});
-                    if (piece_can_be_at(curr_piece_idx, curr_piece_ori, curr_piece_row+1, curr_piece_col))
-                        curr_piece_row++;
+                    if (piece_can_be_at(gs.curr_piece_idx, gs.curr_piece_ori, gs.curr_piece_row+1, gs.curr_piece_col))
+                        gs.curr_piece_row++;
                 }
                 break;
             case SDLK_SPACE:
-                if (!game_over) {
-                    if (!replay_game)
+                if (!gs.game_over) {
+                    if (!gs.replay_game)
                         append_input((INPUT_T) {frame_num, SDLK_SPACE});
                     /* move the piece down as far as it will go */
-                    while (piece_can_be_at(curr_piece_idx, curr_piece_ori, curr_piece_row+1, curr_piece_col))
-                        curr_piece_row++;
+                    while (piece_can_be_at(gs.curr_piece_idx, gs.curr_piece_ori, gs.curr_piece_row+1, gs.curr_piece_col))
+                        gs.curr_piece_row++;
                     add_clear_next();
                 }
                 break;
@@ -308,13 +327,13 @@ tetris_init_game()
     int r, c;
     for (r=0; r<BOARD_ROWS; r++) {
         for (c=0; c<BOARD_COLS; c++) {
-            board[r][c] = BOARD_SQ_EMPTY;
+            gs.board[r][c] = BOARD_SQ_EMPTY;
         }
     }
-    score = 0;
-    game_over = 0;
-    level = 1;
-    lines_cleared = 0;
+    gs.score = 0;
+    gs.game_over = 0;
+    gs.level = 1;
+    gs.lines_cleared = 0;
     init_next_piece();
 
     if (inputs != NULL)
@@ -339,14 +358,14 @@ tetris_replay_game(const char * filename)
         append_input((INPUT_T) {frame_num, input});
     }
     fclose(fp);
-    replay_game = 1;
+    gs.replay_game = 1;
 }
 
 void
 tetris_handle_inputs(uint32_t frame_num)
 {
     SDL_Event e, replay_e;
-    if (replay_game) {
+    if (gs.replay_game) {
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) {
                 end_game();
@@ -378,13 +397,13 @@ tetris_update(uint32_t frame_num, uint32_t dt_ms)
 {
     UNUSED(frame_num);
     UNUSED(dt_ms);
-    if (!game_over) {
-        curr_piece_timer--;
-        if (curr_piece_timer == 0) {
+    if (!gs.game_over) {
+        gs.curr_piece_timer--;
+        if (gs.curr_piece_timer == 0) {
             /* move current piece down a row if possible, otherwise add it to board */
-            if (piece_can_be_at(curr_piece_idx, curr_piece_ori, curr_piece_row+1, curr_piece_col)) {
-                curr_piece_row = (curr_piece_row + 1) % BOARD_ROWS;
-                curr_piece_timer = frames_per_fall();
+            if (piece_can_be_at(gs.curr_piece_idx, gs.curr_piece_ori, gs.curr_piece_row+1, gs.curr_piece_col)) {
+                gs.curr_piece_row = (gs.curr_piece_row + 1) % BOARD_ROWS;
+                gs.curr_piece_timer = frames_per_fall();
             } else {
                 add_clear_next();
             }
@@ -399,13 +418,15 @@ tetris_render(SDL_Renderer * ren)
     COLOR_T color;
     get_color(BOARD_SQ_EMPTY);
 
+    /* clear screen */
     SDL_SetRenderDrawColor(ren, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
     SDL_RenderClear(ren);
 
+    /* draw board */
     for (r=0; r<BOARD_ROWS; r++) {
         for (c=0; c<BOARD_COLS; c++) {
-            BOARD_SQ sq_val = board[r][c];
-            if (game_over) {
+            BOARD_SQ sq_val = gs.board[r][c];
+            if (gs.game_over) {
                 if (sq_val == BOARD_SQ_EMPTY)
                     SDL_SetRenderDrawColor(ren, 0x10, 0x10, 0x10, SDL_ALPHA_OPAQUE);
                 else
@@ -419,17 +440,18 @@ tetris_render(SDL_Renderer * ren)
         }
     }
 
-    if (game_over) {
+    if (gs.game_over) {
         SDL_SetRenderDrawColor(ren, 0x30, 0x30, 0x30, SDL_ALPHA_OPAQUE);
     } else {
-        color = get_color(curr_piece_idx+1); // TODO: hacky
+        color = get_color(gs.curr_piece_idx+1); // TODO: hacky
         SDL_SetRenderDrawColor(ren, color.r, color.g, color.b, color.a);
     }
+    /* draw current piece */
     for (r=0; r<4; r++) {
         for (c=0; c<4; c++) {
-            int sq_val = pieces[curr_piece_idx][curr_piece_ori][r][c];
-            int sq_row = curr_piece_row + r;
-            int sq_col = curr_piece_col + c;
+            int sq_val = pieces[gs.curr_piece_idx][gs.curr_piece_ori][r][c];
+            int sq_row = gs.curr_piece_row + r;
+            int sq_col = gs.curr_piece_col + c;
             if (sq_val == 0) {
                 continue;
             }
