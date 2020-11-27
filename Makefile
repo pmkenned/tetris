@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -Werror -Wextra -Wpedantic
+CFLAGS=-Wall -Werror -Wextra -pedantic
 CPPFLAGS=-I/usr/include/SDL2
 TARGET=tetris
 BUILD_DIR=./build
